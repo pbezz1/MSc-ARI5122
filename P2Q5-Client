@@ -1,0 +1,86 @@
+# CLIENT side
+
+import numpy as np
+import pandas as pd
+from web3 import Web3
+from solc import compile_files
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+import matplotlib.pyplot as plt
+import seaborn as sns
+import json
+
+# get test data from csv files
+X_test = pd.read_csv("X_test")
+y_test = pd.read_csv("y_test")
+
+# connect to smart contract and LR parameters and model parameters
+w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:7545"))
+#print(w3)
+
+acctno = 1
+#print(w3.eth.accounts[acctno])
+
+# open file and extract data
+with open("data.json", 'r') as f:
+     datastore = json.load(f)
+     abi = datastore["abi"]
+     contract_address = datastore["contract_address"]
+
+# set account
+w3.eth.defaultAccount = w3.eth.accounts[acctno]
+lrparam1 = w3.eth.contract(address=contract_address, abi=abi)
+
+# set caller to 1 : client
+tx_hash = lrparam1.functions.SetCaller(1)
+tx_hash = tx_hash.transact()
+
+# Wait for transaction to be mined...
+receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+
+# Get LR specific parameters
+param_data = lrparam1.functions.GetLRParams().call()
+#print(param_data)
+
+lr_C = param_data[0]
+lr_solver = param_data[1]
+
+# build model
+lr = LogisticRegression(C=lr_C, solver=lr_solver, multi_class='multinomial')
+
+# get classification parameters
+param_data = lrparam1.functions.GetClasses().call()
+lr.classes_ = np.array(param_data)
+
+param_data = lrparam1.functions.GetIntercept().call()
+lr.intercept_ = np.array(param_data)/1e8
+
+param_data = lrparam1.functions.GetCoefficients().call()
+lr.coef_ = np.array(param_data)/1e8
+
+lr.coef_ = lr.coef_
+lr.intercept_ = lr.intercept_
+lr.classes_ = lr.classes_
+y_pred = lr.predict(X_test)
+
+# confusion matrix
+cnf_matrix = metrics.confusion_matrix(y_test, y_pred)
+print(cnf_matrix)
+
+# plot confusion matrix
+class_names=[0,1]    # name of classes
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+
+# create heatmap
+sns.heatmap(pd.DataFrame(cnf_matrix), annot=True, cmap="YlGnBu" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+
+# send funds to service provider
+lrparam1.functions.TransferFunds().transact({'value': w3.toWei(0.01,'ether')})
