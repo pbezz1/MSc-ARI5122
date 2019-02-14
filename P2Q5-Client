@@ -48,19 +48,26 @@ lr_solver = param_data[1]
 # build model
 lr = LogisticRegression(C=lr_C, solver=lr_solver, multi_class='multinomial')
 
+# send funds to service provider
+lrparam1.functions.TransferFunds().transact({'value': w3.toWei(0.01,'ether')})
+
+
 # get classification parameters
 param_data = lrparam1.functions.GetClasses().call()
 lr.classes_ = np.array(param_data)
+#print(lr.classes_)
 
 param_data = lrparam1.functions.GetIntercept().call()
-lr.intercept_ = np.array(param_data)/1e8
+# convert intercept list retrieved from contract back to floating points
+lr.intercept_ = np.array(list(map(lambda x:x/1e8, param_data)))
+#print(lr.intercept_)
 
 param_data = lrparam1.functions.GetCoefficients().call()
-lr.coef_ = np.array(param_data)/1e8
+# convert coefficients (weights) retrieved from contract back to floating points and reshape array to 3x4
+lr.coef_ = np.array(list(map(lambda x:x/1e8, param_data))).reshape(3,4)
+#print(lr.coef_)
 
-lr.coef_ = lr.coef_
-lr.intercept_ = lr.intercept_
-lr.classes_ = lr.classes_
+# apply model on unseen test part of data
 y_pred = lr.predict(X_test)
 
 # confusion matrix
@@ -82,5 +89,3 @@ plt.title('Confusion matrix', y=1.1)
 plt.ylabel('Actual label')
 plt.xlabel('Predicted label')
 
-# send funds to service provider
-lrparam1.functions.TransferFunds().transact({'value': w3.toWei(0.01,'ether')})
