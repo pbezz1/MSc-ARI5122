@@ -57,7 +57,6 @@ plt.ylabel('Actual label')
 plt.xlabel('Predicted label')
 
 
-
 # Upload model parameters to smart contract
 
 from web3 import Web3
@@ -86,20 +85,16 @@ tx_hash = contract.deploy(transaction={'from': w3.eth.accounts[acctno]})
 # Get tx receipt to get contract address
 tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
     
-# store abi and contract address in json file
-# add abi(application binary interface) and transaction reciept in json file
+# store abi(application binary interface) and contract address in json file
 with open('data.json', 'w') as outfile:
     data = {
-       "abi": main_contract['abi'],
+       "abi": lrcontract['abi'],
        "contract_address": tx_receipt['contractAddress']
     }
     json.dump(data, outfile, indent=4, sort_keys=True)
     
-# open file and extract data
-with open("data.json", 'r') as f:
-     datastore = json.load(f)
-     abi = datastore["abi"]
-     contract_address = datastore["contract_address"]
+abi = lrcontract['abi']
+contract_address = tx_receipt['contractAddress']
 
 # send caller identifier 0=service provider; 1=client
 w3.eth.defaultAccount = w3.eth.accounts[acctno]
@@ -107,34 +102,29 @@ lrparam1 = w3.eth.contract(address=contract_address, abi=abi)
 tx_hash = lrparam1.functions.SetCaller(0)
 tx_hash = tx_hash.transact()
 
+
 # send LR-specific parameters to smart contract
 receipt = w3.eth.waitForTransactionReceipt(tx_hash)
 tx_hash = lrparam1.functions.SetLRParams(lr_C,lr_solver)
 tx_hash = tx_hash.transact()
 
+
 # send model parameters to smart contract
-tx_hash = lrparam1.functions.SetClasses(lr.classes_[0].item(),
-                                        lr.classes_[1].item(),
-                                        lr.classes_[2].item())
+tx_hash = lrparam1.functions.SetClasses(lr.classes_.tolist())
 tx_hash = tx_hash.transact()
 
-tx_hash = lrparam1.functions.SetIntercept(int(lr.intercept_[0].item()*1e8),
-                                          int(lr.intercept_[1].item()*1e8),
-                                          int(lr.intercept_[2].item()*1e8))
+
+# convert array of intercept to list of integers to store in smart contract
+l = list(map(lambda x:int(x*1e8), lr.intercept_.tolist()))
+# send intercept list to smart contract
+tx_hash = lrparam1.functions.SetIntercept(l)
 tx_hash = tx_hash.transact()
 
-tx_hash = lrparam1.functions.SetCoeff(int(lr.coef_[0][0].item()*1e8),
-                                      int(lr.coef_[0][1].item()*1e8),
-                                      int(lr.coef_[0][2].item()*1e8),
-                                      int(lr.coef_[0][3].item()*1e8),
-                                      int(lr.coef_[1][0].item()*1e8),
-                                      int(lr.coef_[1][1].item()*1e8),
-                                      int(lr.coef_[1][2].item()*1e8),
-                                      int(lr.coef_[1][3].item()*1e8),
-                                      int(lr.coef_[2][0].item()*1e8),
-                                      int(lr.coef_[2][1].item()*1e8),
-                                      int(lr.coef_[2][2].item()*1e8),
-                                      int(lr.coef_[2][3].item()*1e8))
+
+# convert multi-dim array of coefficients to list of integers to store in smart contract
+l2 = list(map(lambda x:int(x*1e8), lr.coef_.ravel().tolist()))
+# send coefficients (weights) list to smart contract
+tx_hash = lrparam1.functions.SetCoefficients(l2) 
 tx_hash = tx_hash.transact()
 
 
