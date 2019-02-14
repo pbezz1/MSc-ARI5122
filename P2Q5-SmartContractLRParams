@@ -2,9 +2,9 @@ pragma solidity >=0.4.22 <0.6.0;
 
 contract LogisticRegressionParameters {
    
-    uint8[3] public classes;
-    int256[3] public intercept;
-    int256[4][3] public coefficients;
+    uint8[] public classes;
+    int256[] public intercept;
+    int256[] public coefficients;
 
     uint256 public C_value;
     string public solver_value;
@@ -12,91 +12,81 @@ contract LogisticRegressionParameters {
     address service_provider;
     address client;
     
-    event SentCoeffs(address addr);
+    bool client_payment_ok;
 
-  constructor() public { 
-	}
+
+    //contract constructor
+    constructor() public { 
+        client_payment_ok = false;
+    }
  
+
     // function to set the caller 0:service provider; 1:client
-	function SetCaller(uint8 caller) public {
-		if (caller == 0) {
-			service_provider = msg.sender;
-		}
-		else {
-			client = msg.sender;
-		}
-	}
-	
+    function SetCaller(uint8 caller) public {
+        if (caller == 0) {
+            service_provider = msg.sender;
+        }
+        else {
+            client = msg.sender;
+            client_payment_ok = false;
+        }
+    }
+
     // function for the service provider to set the C and solver parameters
-	function SetLRParams(uint256 c, string memory solv) public {
-	    if (msg.sender != service_provider) return;
-    	C_value = c;
-		solver_value = solv;
-	}
-	
+    function SetLRParams(uint256 c, string memory solv) public {
+        require (msg.sender == service_provider);
+        C_value = c;
+        solver_value = solv;
+    }
+
     // function to retrieve the C and solver parameters
-	function GetLRParams() public returns (uint256,string memory) {
-		return (C_value,solver_value);
-	}	
+    function GetLRParams() public returns (uint256,string memory) {
+        return (C_value,solver_value);
+    }
 
     // function for the service provider to set the classes array
-    function SetClasses(uint8 c1, uint8 c2, uint8 c3) public {
-        if (msg.sender != service_provider) return;
-        classes[0] = c1;
-        classes[1] = c2;
-        classes[2] = c3;
+    function SetClasses(uint8[] _classArray) public {
+        require (msg.sender == service_provider);
+        classes.length = _classArray.length;
+        classes = _classArray;
     }
  
     // function to retreive the logistic regression classes array
-    function GetClasses() public returns(uint8,uint8,uint8) {
-        return (classes[0],classes[1],classes[2]);
+    function GetClasses() public returns(uint8[] memory _outArray) {
+        _outArray = classes;
     }
  
     // function for the service provider to set the intercept array 
-	  function SetIntercept(int256 i1, int256 i2, int256 i3) public {
-        if (msg.sender != service_provider) return;
-        intercept[0] = i1;
-        intercept[1] = i2;
-        intercept[2] = i3;
+    function SetIntercept(int256[] _intercptArray) public {
+        require (msg.sender == service_provider);
+        intercept.length = _intercptArray.length;
+        intercept = _intercptArray;
     }
 
     // function to retrieve the logistic regression intercept array
-    function GetIntercept() public returns(int256,int256,int256) {
-        return (intercept[0],intercept[1],intercept[2]);
+    function GetIntercept() public returns(int256[] memory _outArray) {
+        _outArray = intercept;
     }
 
     // function for the service provider to set the model coefficients
-	function SetCoeff(int256 coef11,int256 coef12,int256 coef13,int256 coef14,
-                        int256 coef21,int256 coef22,int256 coef23,int256 coef24,
-                        int256 coef31,int256 coef32,int256 coef33,int256 coef34) public {
-        if (msg.sender != service_provider) return;
-		coefficients[0][0] = coef11;
-		coefficients[0][1] = coef12;
-		coefficients[0][2] = coef13;
-		coefficients[0][3] = coef14;
-		coefficients[1][0] = coef21;
-		coefficients[1][1] = coef22;
-		coefficients[1][2] = coef23;
-		coefficients[1][3] = coef24;
-		coefficients[2][0] = coef31;
-		coefficients[2][1] = coef32;
-		coefficients[2][2] = coef33;
-		coefficients[2][3] = coef34;
-	}
-	
-    // function to get the logistic regression coefficients in a 3x4 array
-    function GetCoefficients() public returns(int256[4],int256[4],int256[4]) {
-        if (msg.sender == client) {
-            SentCoeffs(msg.sender);
-        }
-        return (coefficients[0],coefficients[1],coefficients[2]);        
-	}
+    function SetCoefficients(int256[] _coeffsArray) public {  
+        require (msg.sender == service_provider);
+        coefficients.length = _coeffsArray.length;
+        coefficients = _coeffsArray;
+    }
+    
+    // function to get the logistic regression coefficients
+    function GetCoefficients() public returns(int256[] memory _outArray) {  
+        require (client_payment_ok == true || msg.sender == service_provider);
+        _outArray = coefficients;
+    }
 
     
     // function to transfer amount from client to service_provider
     function TransferFunds() public payable {
         require (msg.sender == client && msg.value == 0.01 ether);
         service_provider.transfer(msg.value); 
+        client_payment_ok = true;
     }
      
 }
